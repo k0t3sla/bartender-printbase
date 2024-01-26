@@ -12,24 +12,64 @@
    [clojure.pprint :as pp])
   (:gen-class))
 
+(defn text-input [label val id]
+  [:label {:class "form-control w-full max-w-xs"}
+   [:div {:class "label"}
+    [:span {:class "label-text px-6"} label]
+    [:input {:type "text" :value val :placeholder label :id id :name id :class "input input-bordered w-full max-w-xs"}]]])
+
+(defn textaria-input [label val id]
+  [:label {:class "form-control w-full max-w-xs"}
+   [:div {:class "label"}
+    [:span {:class "label-text px-6"} label]
+    [:textarea {:placeholder label :value val :id id :name id :class "textarea textarea-bordered h-24"}]]])
+
+(def demo-db #{{:id 1
+                :name "Foo"
+                :customer "bar"
+                :requisites "inn 23424234"
+                :address "Lenin 1"
+                :phone "+792592342904"
+                :sender "Ivan"}
+               {:id 2
+                :name "Example2"
+                :customer "bar2"
+                :requisites "inn 2323424"
+                :address "Lenin 2"
+                :phone "+7924232423423"
+                :sender "pavel"}
+               {:id 3
+                :name "Example4"
+                :customer "foo4"
+                :requisites "inn 2080989"
+                :address "tverskaya"
+                :phone "+73434343"
+                :sender "Alex"}})
+
+(defn get-customer [id]
+  (first (filter #(= (Integer/parseInt id) (:id %)) demo-db)))
+
 
 (defn home-page [req]
-  (let [id (:params req)]
+  (let [data (get-customer (:id (:params req)))]
     (hiccup/html5
      [:body
       [:head (hiccup/include-css "styles.css")]
       [:head (hiccup/include-js "htmx.js")]
-      [:main {:class "container mx-auto"}
+      [:h1 (:id (:params req))]
+      [:main {:class "container"}
        [:form
         [:input {:type "text" :placeholder "Поиск"}]]
        [:form
-        [:input {:type "text" :placeholder "Имя записи"}]
-        [:input {:type "text" :placeholder "Контрагент"}]
-        [:input {:type "text" :placeholder "Реквизиты"}]
-        [:textaria {:type "Адресс"}]
-        [:input {:type "Телефон"}]
-        [:input {:type "Отправитель"}]
-        [:input {:type "hidden"}]]]])))
+        (text-input "Имя записи" (:name data) "name")
+        (text-input "Контрагент" (:customer data) "customer")
+        (text-input "Реквизиты" (:requisites data) "requisites")
+        (textaria-input "Адресс" (:address data) "address")
+        (text-input "Телефон" (:phone data) "phone")
+        (text-input "Отправитель" (:sender data) "sender")
+        [:p (:params req)]
+        [:input {:type "hidden" :name (:id data) :id (:id data)}]]]])))
+
 
 (defn update-handler [req]
   (try (pp/pprint req)
@@ -42,7 +82,7 @@
 (defn add-handler [req]
   (try (pp/pprint req)
        (h/html
-        [:h2 "Успешно добавлен товар"])
+        [:h2 "Успешно добавлен в список"])
        (catch Exception e
          [:h2 "Ошибка"]
          [:h3 e])))
@@ -70,9 +110,9 @@
                    (response/header "content-type" "text/html")))}]
      ["/update"
       {:put (fn [request]
-               (-> (update-handler request)
-                   (response/response)
-                   (response/header "content-type" "text/html")))}]
+              (-> (update-handler request)
+                  (response/response)
+                  (response/header "content-type" "text/html")))}]
      ["/delete"
       {:post (fn [request]
                (-> (delete-handler request)
@@ -116,7 +156,7 @@
 
 (comment
   (start-server)
-  (stop-server)
+  (stop-server) 
   )
 
 
@@ -152,4 +192,5 @@
   (pg/execute conn
               "insert into demo (title) values ($1), ($2), ($3)
                returning *"
-              {:params ["test1" "test2" "test3"]}))
+              {:params ["test1" "test2" "test3"]}) 
+)

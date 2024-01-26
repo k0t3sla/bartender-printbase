@@ -1,3 +1,7 @@
 # Introduction to bartender-printbase
 
-TODO: write [great documentation](http://jacobian.org/writing/what-to-write/)
+dev 
+npx tailwindcss -i ./resources/input.css -o ./resources/public/styles.css --watch
+
+prod
+npx tailwindcss -i ./resources/input.css -o ./resources/public/styles.css
