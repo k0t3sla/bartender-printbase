@@ -51,7 +51,9 @@
 
 
 (defn home-page [req]
-  (let [data (get-customer (:id (:params req)))]
+  (let [id (:id (:params req))
+        data (when id
+               (get-customer id))]
     (hiccup/html5
      [:body
       [:head (hiccup/include-css "styles.css")]
@@ -145,8 +147,8 @@
                   (wrap-defaults
                    handler
                    (assoc api-defaults :static {:resources "public"}))
-                  (if (:host-port env)
-                    {:port (:host-port 4000)}
+                  (if (nil? (:host-port env))
+                    {:port (:host-port env)}
                     {:port 8080}))))
 
 
