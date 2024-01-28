@@ -1,6 +1,7 @@
 (ns bartender-printbase.core
   (:require
    [config.core :refer [env]]
+   [clojure.string :as str]
    [org.httpkit.server :as http]
    [hiccup.page :as hiccup]
    [hiccup.core :as h]
@@ -12,17 +13,21 @@
    [clojure.pprint :as pp])
   (:gen-class))
 
-(defn text-input [label val id]
+(defn text-input [label val disabled? id]
   [:label {:class "form-control w-full max-w-xs"}
    [:div {:class "label"}
     [:span {:class "label-text px-6"} label]
-    [:input {:type "text" :value val :placeholder label :id id :name id :class "input input-bordered w-full max-w-xs"}]]])
+    (if disabled?
+      [:input {:type "text" :disabled true :value val :placeholder label :id id :name id :class "input input-bordered w-full max-w-xs"}]
+      [:input {:type "text" :value val :placeholder label :id id :name id :class "input input-bordered w-full max-w-xs"}])]])
 
-(defn textaria-input [label val id]
+(defn textaria-input [label val disabled? id]
   [:label {:class "form-control w-full max-w-xs"}
    [:div {:class "label"}
     [:span {:class "label-text px-6"} label]
-    [:textarea {:placeholder label :value val :id id :name id :class "textarea textarea-bordered h-24"}]]])
+    (if disabled?
+      [:textarea {:placeholder label :disabled true :id id :name id :class "textarea textarea-bordered h-24"} val]
+      [:textarea {:placeholder label :id id :name id :class "textarea textarea-bordered h-24"} val])]])
 
 (def demo-db #{{:id 1
                 :name "Foo"
@@ -49,6 +54,19 @@
 (defn get-customer [id]
   (first (filter #(= (Integer/parseInt id) (:id %)) demo-db)))
 
+(defn search-customer [s]
+  (filter #(str/includes? (:name %) s) demo-db))
+
+(defn form [data disabled?]
+  [:form
+   (text-input "Имя записи" (:name data) disabled? "name")
+   (text-input "Контрагент" (:customer data) disabled? "customer")
+   (text-input "Реквизиты" (:requisites data) disabled? "requisites")
+   (textaria-input "Адресс" (:address data) disabled? "address")
+   (text-input "Телефон" (:phone data) disabled? "phone")
+   (text-input "Отправитель" (:sender data) disabled? "sender")
+   (when-not disabled? [:input {:type "hidden" :name (:id data) :id (:id data)}])])
+
 
 (defn home-page [req]
   (let [id (:id (:params req))
@@ -58,19 +76,19 @@
      [:body
       [:head (hiccup/include-css "styles.css")]
       [:head (hiccup/include-js "htmx.js")]
-      [:h1 (:id (:params req))]
-      [:main {:class "container"}
-       [:form
-        [:input {:type "text" :placeholder "Поиск"}]]
-       [:form
-        (text-input "Имя записи" (:name data) "name")
-        (text-input "Контрагент" (:customer data) "customer")
-        (text-input "Реквизиты" (:requisites data) "requisites")
-        (textaria-input "Адресс" (:address data) "address")
-        (text-input "Телефон" (:phone data) "phone")
-        (text-input "Отправитель" (:sender data) "sender")
-        [:p (:params req)]
-        [:input {:type "hidden" :name (:id data) :id (:id data)}]]]])))
+      [:main {:class "container mx-auto py-24"}
+       [:div {:class "flex flex-col items-center justify-center"}
+        [:label {:for "search_modal", :class "btn"} "Поиск"]
+        (form data false)]
+       [:button {}]]
+      [:input {:type "checkbox", :id "search_modal", :class "modal-toggle"}]
+      [:div
+       {:class "modal", :role "dialog"}
+       [:div
+        {:class "modal-box"}
+        [:h3 {:class "text-lg font-bold"} "Поиск по пользователям"]
+        [:p {:class "py-4"} "This modal works with a hidden checkbox!"]]
+       [:label {:class "modal-backdrop", :for "search_modal"} "Close"]]])))
 
 
 (defn update-handler [req]
@@ -97,12 +115,24 @@
          [:h2 "Ошибка"]
          [:h3 e])))
 
+(defn search-handler [req]
+  (try (when req
+         (search-customer (:search (:params req))))
+       (catch Exception e
+         [:h2 "Ошибка"]
+         [:h3 e])))
+
 (def handler
   (ring/ring-handler
    (ring/router
     [["/"
       {:get (fn [request]
               (-> (home-page request)
+                  (response/response)
+                  (response/header "content-type" "text/html")))}]
+     ["/search"
+      {:post (fn [request]
+              (-> (search-handler request)
                   (response/response)
                   (response/header "content-type" "text/html")))}]
      ["/add"
