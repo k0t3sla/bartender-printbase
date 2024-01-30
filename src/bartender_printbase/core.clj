@@ -9,64 +9,46 @@
    [ring.middleware.defaults :refer [wrap-defaults api-defaults]]
    [ring.util.response :as response]
    [pg.core :as pg]
-   
+   [bartender-printbase.components :refer [form
+                                           button-block]]
+   [clojure.edn :as edn]
+   [clojure.java.io :as io]
+
    [clojure.pprint :as pp])
   (:gen-class))
 
-(defn text-input [label val disabled? id]
-  [:label {:class "form-control w-full max-w-xs"}
-   [:div {:class "label"}
-    [:span {:class "label-text px-6"} label]
-    (if disabled?
-      [:input {:type "text" :disabled true :value val :placeholder label :id id :name id :class "input input-bordered w-full max-w-xs"}]
-      [:input {:type "text" :value val :placeholder label :id id :name id :class "input input-bordered w-full max-w-xs"}])]])
+(defn load-edn
+  "Load edn from an io/reader source (filename or io/resource)."
+  [source]
+  (try
+    (with-open [r (io/reader source)]
+      (edn/read (java.io.PushbackReader. r)))
 
-(defn textaria-input [label val disabled? id]
-  [:label {:class "form-control w-full max-w-xs"}
-   [:div {:class "label"}
-    [:span {:class "label-text px-6"} label]
-    (if disabled?
-      [:textarea {:placeholder label :disabled true :id id :name id :class "textarea textarea-bordered h-24"} val]
-      [:textarea {:placeholder label :id id :name id :class "textarea textarea-bordered h-24"} val])]])
+    (catch java.io.IOException e
+      (printf "Couldn't open '%s': %s\n" source (.getMessage e)))
+    (catch RuntimeException e
+      (printf "Error parsing edn file '%s': %s\n" source (.getMessage e)))))
 
-(def demo-db #{{:id 1
-                :name "Foo"
-                :customer "bar"
-                :requisites "inn 23424234"
-                :address "Lenin 1"
-                :phone "+792592342904"
-                :sender "Ivan"}
-               {:id 2
-                :name "Example2"
-                :customer "bar2"
-                :requisites "inn 2323424"
-                :address "Lenin 2"
-                :phone "+7924232423423"
-                :sender "pavel"}
-               {:id 3
-                :name "Example4"
-                :customer "foo4"
-                :requisites "inn 2080989"
-                :address "tverskaya"
-                :phone "+73434343"
-                :sender "Alex"}})
+(def demo-db (load-edn "resources/fake-db.edn"))
+
+(defn search-list [data]
+  (map #(h/html
+         [:li [:a {:href (str "?id=" (:id %))}
+               (str (:name %))]]) data))
 
 (defn get-customer [id]
   (first (filter #(= (Integer/parseInt id) (:id %)) demo-db)))
 
 (defn search-customer [s]
-  (filter #(str/includes? (:name %) s) demo-db))
+  (search-list (filter #(str/includes? (:name %) s) demo-db)))
 
-(defn form [data disabled?]
-  [:form
-   (text-input "Имя записи" (:name data) disabled? "name")
-   (text-input "Контрагент" (:customer data) disabled? "customer")
-   (text-input "Реквизиты" (:requisites data) disabled? "requisites")
-   (textaria-input "Адресс" (:address data) disabled? "address")
-   (text-input "Телефон" (:phone data) disabled? "phone")
-   (text-input "Отправитель" (:sender data) disabled? "sender")
-   (when-not disabled? [:input {:type "hidden" :name (:id data) :id (:id data)}])])
+(def first-10 (take 10 demo-db))
 
+(def search-section
+  [:section
+   {:class "min-h-96"}
+   [:ul {:class "menu bg-base-200 rounded-box overflow-y-scroll" :id "search-results"}
+    (search-list first-10)]])
 
 (defn home-page [req]
   (let [id (:id (:params req))
@@ -76,25 +58,42 @@
      [:body
       [:head (hiccup/include-css "styles.css")]
       [:head (hiccup/include-js "htmx.js")]
+      [:head [:meta
+              {:name "viewport", :content "width=device-width, initial-scale=1"}]]
       [:main {:class "container mx-auto py-24"}
-       [:div {:class "flex flex-col items-center justify-center"}
-        [:label {:for "search_modal", :class "btn"} "Поиск"]
-        (form data false)]
-       [:button {}]]
+       [:div {:hx-target "this" :hx-swap "outerHTML" :class "flex flex-col items-center justify-center"}
+        [:div {:class "py-6"} [:label {:for "search_modal" :class "btn btn-outline btn-wide btn-info"} "Поиск"]]
+        (form data true)]]
       [:input {:type "checkbox", :id "search_modal", :class "modal-toggle"}]
       [:div
        {:class "modal", :role "dialog"}
        [:div
-        {:class "modal-box"}
-        [:h3 {:class "text-lg font-bold"} "Поиск по пользователям"]
-        [:p {:class "py-4"} "This modal works with a hidden checkbox!"]]
+        {:class "modal-box md:min-w-[750px] max-h-[490px]"}
+        [:input
+         {:class "input input-bordered w-full mb-2",
+          :type "search",
+          :name "search",
+          :placeholder "Печатать чтобы искать по имени",
+          :hx-post "/search",
+          :hx-trigger "input changed delay:200ms, search",
+          :hx-target "#search-results",
+          :hx-indicator ".htmx-indicator"}]
+        search-section]
        [:label {:class "modal-backdrop", :for "search_modal"} "Close"]]])))
 
+(defn edit-handler [req]
+  (try (when req
+         [:div
+          (h/html [:div
+                   (form (get-customer (:id (:params req))) false)]
+                  [:button {:class "btn btn-outline btn-primary" :hx-get (str "/update?id=" (:id (:params req)))} "Обновить"])])
+       (catch Exception e
+         [:h2 "Ошибка"]
+         [:h3 e])))
 
 (defn update-handler [req]
-  (try (pp/pprint req)
-       (h/html
-        [:h2 "Успешно обновлен список"])
+  (try (h/html
+        [:div (form (get-customer (:id (:params req))) true)])
        (catch Exception e
          [:h2 "Ошибка"]
          [:h3 e])))
@@ -132,9 +131,14 @@
                   (response/header "content-type" "text/html")))}]
      ["/search"
       {:post (fn [request]
-              (-> (search-handler request)
-                  (response/response)
-                  (response/header "content-type" "text/html")))}]
+               (-> (search-handler request)
+                   (response/response)
+                   (response/header "content-type" "text/html")))}]
+     ["/edit"
+      {:get (fn [request]
+               (-> (edit-handler request)
+                   (response/response)
+                   (response/header "content-type" "text/html")))}]
      ["/add"
       {:post (fn [request]
                (-> (add-handler request)
@@ -177,10 +181,7 @@
                   (wrap-defaults
                    handler
                    (assoc api-defaults :static {:resources "public"}))
-                  (if (nil? (:host-port env))
-                    {:port (:host-port env)}
-                    {:port 8080}))))
-
+                  {:port 8080})))
 
 (defn -main
   []
@@ -188,8 +189,7 @@
 
 (comment
   (start-server)
-  (stop-server) 
-  )
+  (stop-server))
 
 
 
@@ -224,5 +224,4 @@
   (pg/execute conn
               "insert into demo (title) values ($1), ($2), ($3)
                returning *"
-              {:params ["test1" "test2" "test3"]}) 
-)
+              {:params ["test1" "test2" "test3"]}))
