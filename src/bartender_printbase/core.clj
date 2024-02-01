@@ -9,8 +9,7 @@
    [ring.middleware.defaults :refer [wrap-defaults api-defaults]]
    [ring.util.response :as response]
    [pg.core :as pg]
-   [bartender-printbase.components :refer [form
-                                           button-block]]
+   [bartender-printbase.components :refer [form]]
    [clojure.edn :as edn]
    [clojure.java.io :as io]
 
@@ -60,10 +59,11 @@
       [:head (hiccup/include-js "htmx.js")]
       [:head [:meta
               {:name "viewport", :content "width=device-width, initial-scale=1"}]]
-      [:main {:class "container mx-auto py-24"}
-       [:div {:hx-target "this" :hx-swap "outerHTML" :class "flex flex-col items-center justify-center"}
-        [:div {:class "py-6"} [:label {:for "search_modal" :class "btn btn-outline btn-wide btn-info"} "Поиск"]]
-        (form data true)]]
+      [:main {:class "container mx-auto sm:px-6 md:py-24"}
+       [:div {:class "flex flex-col items-center justify-center"}
+        [:div {:class "py-6"} [:label {:for "search_modal" :class "btn btn-outline btn-wide btn-info"} "Поиск"]]]
+       [:div {:class "flex flex-col items-center justify-center"}
+        (form {:data data :action nil :disabled? true})]]
       [:input {:type "checkbox", :id "search_modal", :class "modal-toggle"}]
       [:div
        {:class "modal", :role "dialog"}
@@ -85,41 +85,41 @@
   (try (when req
          [:div
           (h/html [:div
-                   (form (get-customer (:id (:params req))) false)]
+                   (form {:data (get-customer (:id (:params req))) :action :edit :disabled? false})]
                   [:button {:class "btn btn-outline btn-primary" :hx-get (str "/update?id=" (:id (:params req)))} "Обновить"])])
        (catch Exception e
-         [:h2 "Ошибка"]
-         [:h3 e])))
+         (h/html [:h2 "Ошибка"]
+                 [:h3 e]))))
 
 (defn update-handler [req]
   (try (h/html
-        [:div (form (get-customer (:id (:params req))) true)])
+        [:div (form {:data (get-customer (:id (:params req))) :action :upd :disabled? false})])
        (catch Exception e
-         [:h2 "Ошибка"]
-         [:h3 e])))
+         (h/html [:h2 "Ошибка"]
+                 [:h3 e]))))
 
 (defn add-handler [req]
   (try (pp/pprint req)
        (h/html
-        [:h2 "Успешно добавлен в список"])
+        [:div (form {:data (get-customer (:id (:params req))) :action :upd :disabled? false})])
        (catch Exception e
-         [:h2 "Ошибка"]
-         [:h3 e])))
+         (h/html [:h2 "Ошибка"]
+                 [:h3 e]))))
 
 (defn delete-handler [req]
   (try (pp/pprint req)
        (h/html
         [:h2 "Удалена запись"])
        (catch Exception e
-         [:h2 "Ошибка"]
-         [:h3 e])))
+         (h/html [:h2 "Ошибка"]
+                 [:h3 e]))))
 
 (defn search-handler [req]
   (try (when req
          (search-customer (:search (:params req))))
        (catch Exception e
-         [:h2 "Ошибка"]
-         [:h3 e])))
+         (h/html [:h2 "Ошибка"]
+                 [:h3 e]))))
 
 (def handler
   (ring/ring-handler
@@ -213,8 +213,13 @@
   (pg/query conn "
   create table demo (
     id serial primary key,
-    title text not null,
-    created_at timestamp with time zone default now()
+    name text not null,
+    customer text not null,
+    requisites text not null,
+    email text not null,
+    phone text not null,
+    address text not null,
+    sender text not null,
   )")
   ;; {:command "CREATE TABLE"}
 
