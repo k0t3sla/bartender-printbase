@@ -28,7 +28,7 @@
     (catch RuntimeException e
       (printf "Error parsing edn file '%s': %s\n" source (.getMessage e)))))
 
-(def demo-db (load-edn "resources/fake-db.edn"))
+(def demo-db (atom (load-edn "resources/fake-db.edn")))
 
 (defn search-list [data]
   (map #(h/html
@@ -36,23 +36,41 @@
                (str (:name %))]]) data))
 
 (defn get-customer [id]
-  (first (filter #(= (Integer/parseInt id) (:id %)) demo-db)))
+  (first (filter #(= (Integer/parseInt id) (:id %)) @demo-db)))
 
 (defn search-customer [s]
-  (search-list (filter #(str/includes? (:name %) s) demo-db)))
-
-(def first-10 (take 10 demo-db))
+  (search-list (filter #(str/includes? (:name %) s) @demo-db)))
 
 (def search-section
   [:section
    {:class "min-h-96"}
    [:ul {:class "menu bg-base-200 rounded-box overflow-y-scroll" :id "search-results"}
-    (search-list first-10)]])
+    (search-list (take 10 @demo-db))]])
+
+(def search-block
+  (list
+   [:input {:type "checkbox", :id "search_modal", :class "modal-toggle"}]
+   [:div
+    {:class "modal", :role "dialog"}
+    [:div
+     {:class "modal-box md:min-w-[750px] max-h-[490px]"}
+     [:input
+      {:class "input input-bordered w-full mb-2",
+       :type "search",
+       :name "search",
+       :placeholder "Печатать чтобы искать по имени",
+       :hx-post "/search",
+       :hx-trigger "input changed delay:200ms, search",
+       :hx-target "#search-results",
+       :hx-indicator ".htmx-indicator"}]
+     search-section]
+    [:label {:class "modal-backdrop", :for "search_modal"} "Close"]]))
+
 
 (defn home-page [req]
   (let [id (:id (:params req))
-        data (when id
-               (get-customer id))]
+        form-data (when id
+                    (get-customer id))]
     (hiccup/html5
      [:body
       [:head (hiccup/include-css "styles.css")]
@@ -63,37 +81,31 @@
        [:div {:class "flex flex-col items-center justify-center"}
         [:div {:class "py-6"} [:label {:for "search_modal" :class "btn btn-outline btn-wide btn-info"} "Поиск"]]]
        [:div {:class "flex flex-col items-center justify-center"}
-        (form {:data data :action nil :disabled? true})]]
-      [:input {:type "checkbox", :id "search_modal", :class "modal-toggle"}]
+        (if id 
+          (form {:data form-data :action :to-edit :disabled? true})
+          (form {:data form-data :action :add :disabled? false}))]]
+      search-block
+      [:input {:type "checkbox", :id "del_modal", :class "modal-toggle"}]
       [:div
        {:class "modal", :role "dialog"}
        [:div
-        {:class "modal-box md:min-w-[750px] max-h-[490px]"}
-        [:input
-         {:class "input input-bordered w-full mb-2",
-          :type "search",
-          :name "search",
-          :placeholder "Печатать чтобы искать по имени",
-          :hx-post "/search",
-          :hx-trigger "input changed delay:200ms, search",
-          :hx-target "#search-results",
-          :hx-indicator ".htmx-indicator"}]
-        search-section]
-       [:label {:class "modal-backdrop", :for "search_modal"} "Close"]]])))
+        {:class "modal-box"}
+        [:div {:class "flex flex-col items-center justify-center"}
+         [:form {:action "/delete", :method "POST"}
+          [:input {:name "id", :type "hidden", :value id}]
+          [:button {:class "btn btn-outline btn-wide btn-error"} "Удалить запись"]]]]
+       [:label {:class "modal-backdrop", :for "del_modal"} "Close"]]])))
 
 (defn edit-handler [req]
   (try (when req
-         [:div
-          (h/html [:div
-                   (form {:data (get-customer (:id (:params req))) :action :edit :disabled? false})]
-                  [:button {:class "btn btn-outline btn-primary" :hx-get (str "/update?id=" (:id (:params req)))} "Обновить"])])
+         (h/html (form {:data (get-customer (:id (:params req))) :action :edit :disabled? false})))
        (catch Exception e
          (h/html [:h2 "Ошибка"]
                  [:h3 e]))))
 
 (defn update-handler [req]
   (try (h/html
-        [:div (form {:data (get-customer (:id (:params req))) :action :upd :disabled? false})])
+        (form {:data (get-customer (:id (:params req))) :action :upd :disabled? false}))
        (catch Exception e
          (h/html [:h2 "Ошибка"]
                  [:h3 e]))))
@@ -101,15 +113,21 @@
 (defn add-handler [req]
   (try (pp/pprint req)
        (h/html
-        [:div (form {:data (get-customer (:id (:params req))) :action :upd :disabled? false})])
+        (form {:data (get-customer (:id (:params req))) :action :add :disabled? false}))
        (catch Exception e
          (h/html [:h2 "Ошибка"]
                  [:h3 e]))))
 
 (defn delete-handler [req]
-  (try (pp/pprint req)
-       (h/html
-        [:h2 "Удалена запись"])
+  (-> req
+      :params
+      :id
+      println)
+  (response/redirect "/"))
+
+(defn copy-handler [req]
+  (try (h/html
+        (form {:data (get-customer (:id (:params req))) :action :copy :disabled? false}))
        (catch Exception e
          (h/html [:h2 "Ошибка"]
                  [:h3 e]))))
@@ -136,12 +154,17 @@
                    (response/header "content-type" "text/html")))}]
      ["/edit"
       {:get (fn [request]
-               (-> (edit-handler request)
-                   (response/response)
-                   (response/header "content-type" "text/html")))}]
+              (-> (edit-handler request)
+                  (response/response)
+                  (response/header "content-type" "text/html")))}]
      ["/add"
       {:post (fn [request]
                (-> (add-handler request)
+                   (response/response)
+                   (response/header "content-type" "text/html")))}]
+     ["/copy"
+      {:post (fn [request]
+               (-> (copy-handler request)
                    (response/response)
                    (response/header "content-type" "text/html")))}]
      ["/update"
@@ -151,9 +174,7 @@
                   (response/header "content-type" "text/html")))}]
      ["/delete"
       {:post (fn [request]
-               (-> (delete-handler request)
-                   (response/response)
-                   (response/header "content-type" "text/html")))}]])))
+               (delete-handler request))}]])))
 
 
 (defmethod response/resource-data :resource
