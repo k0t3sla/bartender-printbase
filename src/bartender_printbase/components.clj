@@ -4,13 +4,13 @@
   [:label {:class "form-control w-full"}
    [:div {:class "label"}
     [:span {:class "label-text md:px-6"} label]
-    [:input {:type "text" :disabled disabled? :value val :placeholder label :id id :name id :class "input input-bordered md:w-full md:max-w-xs"}]]])
+    [:input {:type "text" :required true :disabled disabled? :value val :placeholder label :id id :name id :class "input input-bordered md:w-full md:max-w-xs"}]]])
 
 (defn textaria-input [label val disabled? id]
   [:label {:class "form-control w-full"}
    [:div {:class "label"}
     [:span {:class "label-text px-6"} label]
-    [:textarea {:placeholder label :disabled disabled? :id id :name id :class "textarea textarea-bordered h-24 md:w-[324px]"} val]]])
+    [:textarea {:placeholder label :required true :disabled disabled? :id id :name id :class "textarea textarea-bordered h-24 md:w-[324px]"} val]]])
 
 (defn input-button-block [data action disabled?]
   (list
