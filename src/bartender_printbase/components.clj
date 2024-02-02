@@ -38,11 +38,11 @@
 
 (defn form [{:keys [data action disabled?]}]
   (cond
-    (= action :copy) [:form {:class "md:w-[32rem]" :hx-target "this" :hx-swap "outerHTML"}
+    (= action :copy) [:form {:class "md:w-[32rem]" :action "/add" :method "POST" :hx-target "this" :hx-swap "outerHTML"}
                       (input-button-block data action disabled?)]
     (= action :to-edit) [:form {:class "md:w-[32rem]" :hx-target "this" :hx-swap "outerHTML"}
                          (input-button-block data action disabled?)]
-    (= action :add) [:form {:class "md:w-[32rem]" :hx-post "/add" :hx-target "this" :hx-swap "outerHTML"}
+    (= action :add) [:form {:class "md:w-[32rem]" :action "/add", :method "POST" :hx-target "this" :hx-swap "outerHTML"}
                      (input-button-block data action disabled?)]
     (= action :edit) [:form {:class "md:w-[32rem]" :hx-put "/update" :hx-target "this" :hx-swap "outerHTML"}
                       (input-button-block data action disabled?)]))

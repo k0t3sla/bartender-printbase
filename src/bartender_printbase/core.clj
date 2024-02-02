@@ -31,9 +31,11 @@
 (def demo-db (atom (load-edn "resources/fake-db.edn")))
 
 (defn search-list [data]
-  (map #(h/html
-         [:li [:a {:href (str "?id=" (:id %))}
-               (str (:name %))]]) data))
+  (if (zero? (count data))
+    (h/html [:h1 "Ничего не найдено"])
+    (map #(h/html
+           [:li [:a {:href (str "?id=" (:id %))}
+                 (str (:name %))]]) data)))
 
 (defn get-customer [id]
   (first (filter #(= (Integer/parseInt id) (:id %)) @demo-db)))
@@ -79,7 +81,9 @@
               {:name "viewport", :content "width=device-width, initial-scale=1"}]]
       [:main {:class "container mx-auto sm:px-6 md:py-24"}
        [:div {:class "flex flex-col items-center justify-center"}
-        [:div {:class "py-6"} [:label {:for "search_modal" :class "btn btn-outline btn-wide btn-info"} "Поиск"]]]
+        [:div {:class "flex gap-x-12 py-6"} 
+         [:label {:for "search_modal" :class "btn btn-outline btn-wide btn-info"} "Поиск"]
+         (when id [:a {:href "/" :class "btn btn-outline"} "Добавить новый элемент"])]]
        [:div {:class "flex flex-col items-center justify-center"}
         (if id 
           (form {:data form-data :action :to-edit :disabled? true})
@@ -112,8 +116,7 @@
 
 (defn add-handler [req]
   (try (pp/pprint req)
-       (h/html
-        (form {:data (get-customer (:id (:params req))) :action :add :disabled? false}))
+       (response/redirect "/")
        (catch Exception e
          (h/html [:h2 "Ошибка"]
                  [:h3 e]))))
@@ -159,9 +162,7 @@
                   (response/header "content-type" "text/html")))}]
      ["/add"
       {:post (fn [request]
-               (-> (add-handler request)
-                   (response/response)
-                   (response/header "content-type" "text/html")))}]
+               (-> (add-handler request)))}]
      ["/copy"
       {:post (fn [request]
                (-> (copy-handler request)
