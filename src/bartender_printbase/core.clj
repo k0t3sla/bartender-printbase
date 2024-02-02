@@ -77,6 +77,7 @@
      [:body
       [:head (hiccup/include-css "styles.css")]
       [:head (hiccup/include-js "htmx.js")]
+      [:head (hiccup/include-js "inputmask.min.js")]
       [:head [:meta
               {:name "viewport", :content "width=device-width, initial-scale=1"}]]
       [:main {:class "container mx-auto sm:px-6 md:py-24"}
@@ -98,7 +99,8 @@
          [:form {:action "/delete", :method "POST"}
           [:input {:name "id", :type "hidden", :value id}]
           [:button {:class "btn btn-outline btn-wide btn-error"} "Удалить запись"]]]]
-       [:label {:class "modal-backdrop", :for "del_modal"} "Close"]]])))
+       [:label {:class "modal-backdrop", :for "del_modal"} "Close"]]
+      (hiccup/include-js "scripts.js")])))
 
 (defn edit-handler [req]
   (try (when req
