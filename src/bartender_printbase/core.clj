@@ -9,26 +9,18 @@
    [ring.middleware.defaults :refer [wrap-defaults api-defaults]]
    [ring.util.response :as response]
    [pg.core :as pg]
-   [bartender-printbase.components :refer [form]]
-   [clojure.edn :as edn]
-   [clojure.java.io :as io]
-
-   [clojure.pprint :as pp])
+   [pg.honey :as pgh]
+   #_[clojure.pprint :as pp]
+   [bartender-printbase.db :refer [conn
+                                   select-first-ten
+                                   get-customer
+                                   insert-query
+                                   delete-query
+                                   update-query
+                                   name-not-unique?
+                                   requisites-not-unique?]]
+   [bartender-printbase.components :refer [form]])
   (:gen-class))
-
-(defn load-edn
-  "Load edn from an io/reader source (filename or io/resource)."
-  [source]
-  (try
-    (with-open [r (io/reader source)]
-      (edn/read (java.io.PushbackReader. r)))
-
-    (catch java.io.IOException e
-      (printf "Couldn't open '%s': %s\n" source (.getMessage e)))
-    (catch RuntimeException e
-      (printf "Error parsing edn file '%s': %s\n" source (.getMessage e)))))
-
-(def demo-db (atom (load-edn "resources/fake-db.edn")))
 
 (defn search-list [data]
   (if (zero? (count data))
@@ -37,19 +29,18 @@
            [:li [:a {:href (str "?id=" (:id %))}
                  (str (:name %))]]) data)))
 
-(defn get-customer [id]
-  (first (filter #(= (Integer/parseInt id) (:id %)) @demo-db)))
-
 (defn search-customer [s]
-  (search-list (filter #(str/includes? (:name %) s) @demo-db)))
+  (search-list (pgh/execute conn {:select [:*]
+                                  :from :customers
+                                  :where [:like :name (str "%" s "%")]})))
 
-(def search-section
+(defn search-section []
   [:section
    {:class "min-h-96"}
    [:ul {:class "menu bg-base-200 rounded-box overflow-y-scroll" :id "search-results"}
-    (search-list (take 10 @demo-db))]])
+    (search-list (select-first-ten))]])
 
-(def search-block
+(defn search-block []
   (list
    [:input {:type "checkbox", :id "search_modal", :class "modal-toggle"}]
    [:div
@@ -65,7 +56,7 @@
        :hx-trigger "input changed delay:200ms, search",
        :hx-target "#search-results",
        :hx-indicator ".htmx-indicator"}]
-     search-section]
+     (search-section)]
     [:label {:class "modal-backdrop", :for "search_modal"} "Close"]]))
 
 
@@ -82,14 +73,14 @@
               {:name "viewport", :content "width=device-width, initial-scale=1"}]]
       [:main {:class "container mx-auto sm:px-6 md:py-24"}
        [:div {:class "flex flex-col items-center justify-center"}
-        [:div {:class "flex gap-x-12 py-6"} 
+        [:div {:class "flex gap-x-12 py-6"}
          [:label {:for "search_modal" :class "btn btn-outline btn-wide btn-info"} "Поиск"]
          (when id [:a {:href "/" :class "btn btn-outline"} "Добавить новый элемент"])]]
        [:div {:class "flex flex-col items-center justify-center"}
-        (if id 
+        (if id
           (form {:data form-data :action :to-edit :disabled? true})
           (form {:data form-data :action :add :disabled? false}))]]
-      search-block
+      (search-block)
       [:input {:type "checkbox", :id "del_modal", :class "modal-toggle"}]
       [:div
        {:class "modal", :role "dialog"}
@@ -110,15 +101,23 @@
                  [:h3 e]))))
 
 (defn update-handler [req]
-  (try (h/html
-        (form {:data (get-customer (:id (:params req))) :action :upd :disabled? false}))
+  (try (update-query (:params req))
+       (h/html (form {:data (get-customer (:id (:params req))) :action :to-edit :disabled? true}))
        (catch Exception e
          (h/html [:h2 "Ошибка"]
                  [:h3 e]))))
 
 (defn add-handler [req]
-  (try (pp/pprint req)
-       (response/redirect "/")
+  (try (let [params (:params req)
+             uniq-name? (name-not-unique? params)
+             uniq-requisites? (requisites-not-unique? params)]
+         (if (some true? [uniq-name?
+                          uniq-requisites?])
+           (h/html (form {:data params :action :to-edit
+                          :disabled? true
+                          :name-not-unuque uniq-name? :requisites-not-unique uniq-requisites?}))
+           (do (insert-query (:params req))
+               (response/redirect "/"))))
        (catch Exception e
          (h/html [:h2 "Ошибка"]
                  [:h3 e]))))
@@ -127,15 +126,9 @@
   (-> req
       :params
       :id
-      println)
+      Integer/parseInt
+      delete-query)
   (response/redirect "/"))
-
-(defn copy-handler [req]
-  (try (h/html
-        (form {:data (get-customer (:id (:params req))) :action :copy :disabled? false}))
-       (catch Exception e
-         (h/html [:h2 "Ошибка"]
-                 [:h3 e]))))
 
 (defn search-handler [req]
   (try (when req
@@ -165,16 +158,9 @@
      ["/add"
       {:post (fn [request]
                (-> (add-handler request)))}]
-     ["/copy"
-      {:post (fn [request]
-               (-> (copy-handler request)
-                   (response/response)
-                   (response/header "content-type" "text/html")))}]
      ["/update"
       {:put (fn [request]
-              (-> (update-handler request)
-                  (response/response)
-                  (response/header "content-type" "text/html")))}]
+              (-> (update-handler request)))}]
      ["/delete"
       {:post (fn [request]
                (delete-handler request))}]])))
@@ -229,28 +215,18 @@
   (def conn
     (pg/connect config))
 
-  ;; a trivial query
-  (pg/query conn "select 1 as one")
-  ;; [{:one 1}]
-
   ;; let's create a table
   (pg/query conn "
-  create table demo (
-    id serial primary key,
-    name text not null,
-    customer text not null,
-    requisites text not null,
-    email text not null,
-    phone text not null,
-    address text not null,
-    sender text not null,
-  )")
-  ;; {:command "CREATE TABLE"}
+  CREATE TABLE customers (
+    id serial PRIMARY KEY,
+    name text NOT NULL,
+    customer text NOT NULL,
+    requisites text NOT NULL,
+    address text NOT NULL,
+    phone text NOT NULL,
+    sender text NOT NULL
+);")
 
-  ;; Insert three rows returning all the columns.
-  ;; Pay attention that PG2 uses not question marks (?)
-  ;; but numered dollars for parameters:
-  (pg/execute conn
-              "insert into demo (title) values ($1), ($2), ($3)
-               returning *"
-              {:params ["test1" "test2" "test3"]}))
+  (pgh/execute conn {:select [:*]
+                     :from :customers})
+  )

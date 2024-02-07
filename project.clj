@@ -9,7 +9,8 @@
                  [http-kit "2.7.0"]
                  [ring/ring-defaults "0.3.2"]
                  [yogthos/config "1.2.0"]
-                 [com.github.igrishaev/pg2-core "0.1.1"]
+                 [com.github.igrishaev/pg2-core "0.1.2"]
+                 [com.github.igrishaev/pg2-honey "0.1.2"]
                  
                  ]
   :main ^:skip-aot bartender-printbase.core

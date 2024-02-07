@@ -12,16 +12,28 @@
     [:span {:class "label-text px-6"} label]
     [:textarea {:placeholder label :required true :disabled disabled? :id id :name id :class "textarea textarea-bordered h-24 md:w-[324px]"} val]]])
 
-(defn input-button-block [data action disabled?]
+(def sender-val "ООО НАУТИЛУС ИНН7707439701
+143441, г. Москва,
+тупик Тихвинский 1-й, дом 5-7
+тел/факс: 8-495-660-52-20")
+
+(defn input-button-block [data action disabled? name-not-unuque requisites-not-unique]
   (list
    [:div {:class "pb-8"}
+    (when name-not-unuque [:div {:class "text-red-500"} "Название не уникально"])
     (text-input "Имя записи" (:name data) disabled? "name")
     (text-input "Контрагент" (:customer data) disabled? "customer")
+    (when requisites-not-unique [:div {:class "text-red-500"} "Реквизиты не уникальны"])
     (text-input "Реквизиты" (:requisites data) disabled? "requisites")
     (textaria-input "Адресс" (:address data) disabled? "address")
     (text-input "Телефон" (:phone data) disabled? "phone")
-    (text-input "Отправитель" (:sender data) disabled? "sender")]
-   [:input {:type "hidden" :name (:id data) :id (:id data)}]
+    [:label {:class "form-control w-full"}
+     [:div {:class "label"}
+      [:span {:class "label-text px-6"} "Отправитель"]
+      [:select {:class "select select-bordered w-full max-w-xs"
+                :id "sender", :name "sender"}
+       [:option {:value sender-val} "ООО \"НАУТИЛУС\""]]]]]
+   [:input {:type "hidden" :name "id" :value (:id data)}]
    (cond
      (= action :copy) [:div {:class "flex gap-x-12 justify-center max-w-[750px] mx-auto"}
                       [:button {:class "btn btn-outline btn-success"} "Добавить"]]
@@ -36,13 +48,13 @@
                           [:label {:for "del_modal" :class "btn btn-outline btn-error"} "Удалить"]])))
 
 
-(defn form [{:keys [data action disabled?]}]
+(defn form [{:keys [data action disabled? name-not-unuque requisites-not-unique]}]
   (cond
     (= action :copy) [:form {:class "md:w-[32rem]" :action "/add" :method "POST" :hx-target "this" :hx-swap "outerHTML"}
-                      (input-button-block data action disabled?)]
+                      (input-button-block data action disabled? name-not-unuque requisites-not-unique)]
     (= action :to-edit) [:form {:class "md:w-[32rem]" :hx-target "this" :hx-swap "outerHTML"}
-                         (input-button-block data action disabled?)]
+                         (input-button-block data action disabled? name-not-unuque requisites-not-unique)]
     (= action :add) [:form {:class "md:w-[32rem]" :action "/add", :method "POST" :hx-target "this" :hx-swap "outerHTML"}
-                     (input-button-block data action disabled?)]
+                     (input-button-block data action disabled? name-not-unuque requisites-not-unique)]
     (= action :edit) [:form {:class "md:w-[32rem]" :hx-put "/update" :hx-target "this" :hx-swap "outerHTML"}
-                      (input-button-block data action disabled?)]))
+                      (input-button-block data action disabled? name-not-unuque requisites-not-unique)]))
