@@ -31,6 +31,7 @@
      [:div {:class "label"}
       [:span {:class "label-text px-6"} "Отправитель"]
       [:select {:class "select select-bordered w-full max-w-xs"
+                :disabled disabled?
                 :id "sender", :name "sender"}
        [:option {:value sender-val} "ООО \"НАУТИЛУС\""]]]]]
    [:input {:type "hidden" :name "id" :value (:id data)}]

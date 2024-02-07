@@ -122,6 +122,13 @@
          (h/html [:h2 "Ошибка"]
                  [:h3 e]))))
 
+(defn copy-handler [req]
+  (try (when req
+         (h/html (form {:data (dissoc (get-customer (:id (:params req))) :id) :action :copy :disabled? false})))
+       (catch Exception e
+         (h/html [:h2 "Ошибка"]
+                 [:h3 e]))))
+
 (defn delete-handler [req]
   (-> req
       :params
@@ -161,6 +168,11 @@
      ["/update"
       {:put (fn [request]
               (-> (update-handler request)))}]
+     ["/copy"
+      {:post (fn [request]
+               (-> (copy-handler request)
+                   (response/response)
+                   (response/header "content-type" "text/html")))}]
      ["/delete"
       {:post (fn [request]
                (delete-handler request))}]])))
