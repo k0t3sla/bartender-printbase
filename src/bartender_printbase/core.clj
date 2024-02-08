@@ -10,7 +10,7 @@
    [ring.util.response :as response]
    [pg.core :as pg]
    [pg.honey :as pgh]
-   #_[clojure.pprint :as pp]
+   [clojure.pprint :as pp]
    [bartender-printbase.db :refer [conn
                                    select-first-ten
                                    get-customer
@@ -107,27 +107,25 @@
          (h/html [:h2 "Ошибка"]
                  [:h3 e]))))
 
+(defn check-valid [params]
+  {:name-not-unique? (name-not-unique? params)
+   :requisites-not-unique? (requisites-not-unique? params)})
+
 (defn add-handler [req]
   (try (let [params (:params req)
-             uniq-name? (name-not-unique? params)
-             uniq-requisites? (requisites-not-unique? params)]
-         (if (some true? [uniq-name?
-                          uniq-requisites?])
-           (h/html (form {:data params :action :to-edit
-                          :disabled? true
-                          :name-not-unuque uniq-name? :requisites-not-unique uniq-requisites?}))
+             check-valid (check-valid params)]
+         (if (some true? [(:name-not-unique? check-valid)
+                          :requisites-not-unique? check-valid])
+           (h/html (form {:data params :action :add
+                          :disabled? false
+                          :name-not-unuque (:name-not-unique? check-valid) :requisites-not-unique (:requisites-not-unique? check-valid)}))
            (do (insert-query (:params req))
-               (response/redirect "/"))))
+               (h/html (form {:data {} :action :add
+                              :disabled? false})))))
        (catch Exception e
          (h/html [:h2 "Ошибка"]
                  [:h3 e]))))
 
-(defn copy-handler [req]
-  (try (when req
-         (h/html (form {:data (dissoc (get-customer (:id (:params req))) :id) :action :copy :disabled? false})))
-       (catch Exception e
-         (h/html [:h2 "Ошибка"]
-                 [:h3 e]))))
 
 (defn delete-handler [req]
   (-> req
@@ -164,13 +162,15 @@
                   (response/header "content-type" "text/html")))}]
      ["/add"
       {:post (fn [request]
-               (-> (add-handler request)))}]
+               (-> (add-handler request)
+                   (response/response)
+                   (response/header "content-type" "text/html")))}]
      ["/update"
       {:put (fn [request]
               (-> (update-handler request)))}]
      ["/copy"
       {:post (fn [request]
-               (-> (copy-handler request)
+               (-> (add-handler request)
                    (response/response)
                    (response/header "content-type" "text/html")))}]
      ["/delete"
