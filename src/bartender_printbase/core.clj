@@ -1,7 +1,5 @@
 (ns bartender-printbase.core
   (:require
-   [config.core :refer [env]]
-   [clojure.string :as str]
    [org.httpkit.server :as http]
    [hiccup.page :as hiccup]
    [hiccup.core :as h]
@@ -10,7 +8,6 @@
    [ring.util.response :as response]
    [pg.core :as pg]
    [pg.honey :as pgh]
-   [clojure.pprint :as pp]
    [bartender-printbase.db :refer [conn
                                    select-first-ten
                                    get-customer
@@ -101,11 +98,14 @@
                  [:h3 e]))))
 
 (defn update-handler [req]
-  (try (update-query (:params req))
-       (h/html (form {:data (get-customer (:id (:params req))) :action :to-edit :disabled? true}))
-       (catch Exception e
-         (h/html [:h2 "Ошибка"]
-                 [:h3 e]))))
+  (update-query (:params req))
+  (->
+   (h/html (form {:data (get-customer (:id (:params req))) :action :to-edit :disabled? true}))
+   (response/response)
+   (response/header "content-type" "text/html")))
+
+(defn copy-handler [req]
+  (h/html (form {:data (get-customer (:id (:params req))) :action :add :disabled? false})))
 
 (defn check-valid [params]
   {:name-not-unique? (name-not-unique? params)
@@ -170,9 +170,7 @@
               (-> (update-handler request)))}]
      ["/copy"
       {:post (fn [request]
-               (-> (add-handler request)
-                   (response/response)
-                   (response/header "content-type" "text/html")))}]
+               (-> (copy-handler request)))}]
      ["/delete"
       {:post (fn [request]
                (delete-handler request))}]])))
@@ -198,12 +196,12 @@
     (reset! server nil)))
 
 (defn start-server []
-  (println "starting http.kit server http://localhost:8080/")
+  (println "starting http.kit server http://localhost:4000/")
   (reset! server (http/run-server
                   (wrap-defaults
                    handler
                    (assoc api-defaults :static {:resources "public"}))
-                  {:port 8080})))
+                  {:port 4000})))
 
 (defn -main
   []

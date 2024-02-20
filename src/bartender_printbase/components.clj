@@ -57,5 +57,5 @@
                          (input-button-block data action disabled? name-not-unuque requisites-not-unique)]
     (= action :add) [:form {:class "md:w-[32rem]" :hx-post "/add", :method "POST" :hx-target "this" :hx-swap "outerHTML"}
                      (input-button-block data action disabled? name-not-unuque requisites-not-unique)]
-    (= action :edit) [:form {:class "md:w-[32rem]" :hx-post "/update" :hx-target "this" :hx-swap "outerHTML"}
+    (= action :edit) [:form {:class "md:w-[32rem]" :hx-put "/update" :hx-target "this" :hx-swap "outerHTML"}
                       (input-button-block data action disabled? name-not-unuque requisites-not-unique)]))
