@@ -16,3 +16,4 @@ pom.xml.asc
 .lsp/
 config.edn
 node_modules/
+resources/public/styles.css
